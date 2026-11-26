@@ -1,0 +1,24 @@
+{
+  "name": "motion-score",
+  "main": ".motion-build/server/worker.py",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["python_workers", "disable_python_external_sdk"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".motion-build/site",
+    "html_handling": "none"
+  },
+  "ratelimits": [
+    {
+      "name": "MAP_LIMIT",
+      "namespace_id": "72164101",
+      "simple": { "limit": 60, "period": 60 }
+    },
+    {
+      "name": "MUSIC_LIMIT",
+      "namespace_id": "72164102",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ]
+}

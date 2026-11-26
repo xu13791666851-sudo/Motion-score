@@ -49,6 +49,16 @@ def request(path, params, binary=False):
             mime = response.headers.get_content_type()
     except (OSError, ValueError):
         raise MapError('高德服务暂时未能连接，请稍后重试。') from None
+    result = decode_response(raw, mime, binary)
+    with LOCK:
+        if len(CACHE) >= 128:
+            CACHE.pop(next(iter(CACHE)))
+        CACHE[cache_key] = (time.monotonic(), result)
+    return result
+
+
+
+def decode_response(raw, mime, binary=False):
     if len(raw) > 4_000_000:
         raise MapError('高德返回的数据过大，请缩小路线范围。')
     if binary and mime in {'image/png', 'image/jpeg'}:
@@ -73,17 +83,20 @@ def request(path, params, binary=False):
             raise MapError(reasons.get(info, '高德未能完成请求，请检查密钥权限和地点。') + f'（错误码 {code}）')
         if binary:
             raise MapError('高德未返回地图图片，请检查静态地图服务权限。')
-    with LOCK:
-        if len(CACHE) >= 128:
-            CACHE.pop(next(iter(CACHE)))
-        CACHE[cache_key] = (time.monotonic(), result)
     return result
 
 
 def geocode(address):
+    return decode_geocode(address, request('/v3/geocode/geo', geocode_params(address)))
+
+
+def geocode_params(address):
     if not isinstance(address, str) or not 1 <= len(address.strip()) <= 60:
         raise InputError('地点请填写 1–60 字，建议包含城市和具体位置。')
-    result = request('/v3/geocode/geo', {'address': address.strip(), 'output': 'JSON'})
+    return {'address': address.strip(), 'output': 'JSON'}
+
+
+def decode_geocode(address, result):
     places = result.get('geocodes', [])
     if not places:
         raise MapError('没有找到这个地点，请补充城市和具体地址。')
@@ -93,17 +106,29 @@ def geocode(address):
 
 
 def plan_route(data):
+    mode, start, end = route_inputs(data)
+    origin, destination = geocode(start), geocode(end)
+    path, params = route_params(mode, origin, destination)
+    return decode_route(mode, origin, destination, request(path, params))
+
+
+def route_inputs(data):
     if not isinstance(data, dict) or data.get('mode') not in {'run', 'drive'}:
         raise InputError('路线规划仅适用于户外跑步或驾车。')
-    origin, destination = geocode(data.get('origin')), geocode(data.get('destination'))
-    mode = data['mode']
+    return data['mode'], data.get('origin'), data.get('destination')
+
+
+def route_params(mode, origin, destination):
     if mode == 'run' and distance(origin['location'], destination['location']) > 100_000:
         raise InputError('跑步路线应在 100 公里内，请填写附近的公园、街道或具体地址。')
     endpoint = '/v3/direction/driving' if mode == 'drive' else '/v3/direction/walking'
     params = {'origin': pair(origin['location']), 'destination': pair(destination['location']), 'extensions': 'all', 'output': 'JSON'}
     if mode == 'drive':
         params['strategy'] = 10
-    result = request(endpoint, params)
+    return endpoint, params
+
+
+def decode_route(mode, origin, destination, result):
     paths = result.get('route', {}).get('paths', [])
     if not paths:
         raise MapError('这两个地点之间没有找到路线，请换成可到达的具体地点。')
@@ -136,24 +161,36 @@ def plan_route(data):
 
 
 def convert(data):
+    params, count = convert_params(data)
+    return decode_conversion(count, request('/v3/assistant/coordinate/convert', params))
+
+
+def convert_params(data):
     points = data.get('points') if isinstance(data, dict) else None
     if not isinstance(points, list) or not 1 <= len(points) <= 40:
         raise InputError('每次转换应包含 1–40 个定位点。')
-    result = request('/v3/assistant/coordinate/convert', {'locations': '|'.join(pair(p) for p in points), 'coordsys': 'gps', 'output': 'JSON'})
+    return {'locations': '|'.join(pair(p) for p in points), 'coordsys': 'gps', 'output': 'JSON'}, len(points)
+
+
+def decode_conversion(count, result):
     converted = [coordinate([float(v) for v in p.split(',')]) for p in result.get('locations', '').split(';') if p]
-    if len(converted) != len(points):
+    if len(converted) != count:
         raise MapError('定位坐标转换不完整，请重试。')
     return {'coordinateSystem': 'GCJ02', 'points': converted}
 
 
 def static_map(center, zoom, height=320):
+    return request('/v3/staticmap', static_map_params(center, zoom, height), binary=True)
+
+
+def static_map_params(center, zoom, height=320):
     zoom = number(zoom, '地图缩放', 3, 17)
     if int(zoom) != zoom:
         raise InputError('地图缩放应为整数。')
     height = number(height, '地图高度', 240, 800)
     if int(height) != height:
         raise InputError('地图高度应为整数。')
-    return request('/v3/staticmap', {'location': pair(center), 'zoom': int(zoom), 'size': f'500*{int(height)}', 'scale': 1}, binary=True)
+    return {'location': pair(center), 'zoom': int(zoom), 'size': f'500*{int(height)}', 'scale': 1}
 
 
 def distance(a, b):

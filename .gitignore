@@ -3,3 +3,8 @@ __pycache__/
 node_modules/
 data/local-cards.json
 data/local-cards.json.tmp
+.motion-build/
+.wrangler/
+.venv/
+python_modules/
+.dev.vars*

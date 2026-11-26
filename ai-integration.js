@@ -37,25 +37,26 @@
 
   async function api(path,data,signal){
     if(window.location?.protocol==='file:')throw new Error('当前直接打开了网页文件，未连接本地服务。请点击右侧“打开本地 AI 页面”，或双击“启动本地版.cmd”。');
+    const online=!!window.MotionScoreBrowserRecords;
     let response;
     try{
       response = await fetch(path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal});
     }catch(error){
       if(error.name==='AbortError')throw error;
       const file=window.location?.protocol==='file:';
-      throw new Error(file?'当前直接打开了网页文件，未连接本地服务。请双击“启动本地版.cmd”，使用它打开的网页。':'页面未能连接本地服务。请保持启动窗口运行，并用“启动本地版.cmd”重新打开网页。');
+      throw new Error(online?'暂时无法连接在线服务，请检查网络后重试。':file?'当前直接打开了网页文件，未连接本地服务。请双击“启动本地版.cmd”，使用它打开的网页。':'页面未能连接本地服务。请保持启动窗口运行，并用“启动本地版.cmd”重新打开网页。');
     }
     let result;
     try{result=await response.json();}catch{
-      throw new Error('当前网址没有提供 AI 服务。请通过“启动本地版.cmd”打开网页，不能只使用静态页面预览。');
+      throw new Error(online?'在线服务暂时不可用，请稍后重试。':'当前网址没有提供 AI 服务。请通过“启动本地版.cmd”打开网页，不能只使用静态页面预览。');
     }
-    if(!response.ok) throw new Error(result.error || '本地服务暂时不可用。');
+    if(!response.ok) throw new Error(result.error || '服务暂时不可用。');
     return result;
   }
   async function checkConnection(signal){
     try{
       const result=await api('/api/health',undefined,signal);
-      if(!result || result.application!=='motion-score-local'||result.ok!==true)throw new Error('当前网址不是移动原声带的本地服务，请通过“启动本地版.cmd”重新打开。');
+      if(!result || !['motion-score-local','motion-score-online'].includes(result.application)||result.ok!==true)throw new Error('当前网址不是移动原声带的本地服务，请通过“启动本地版.cmd”重新打开。');
       health=result;connectionError='';return result;
     }catch(error){
       if(error.name!=='AbortError'){health=null;connectionError=error.message;}

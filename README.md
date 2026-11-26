@@ -6,6 +6,10 @@
 | --- | --- |
 | <img src="design-assets/hd-pages/01-home.png" alt="移动原声带首页设计稿，显示夜跑建议和开始按钮" width="240"> | <img src="design-assets/hd-pages/03-outdoor-play.png" alt="户外播放页设计稿，显示当前歌曲和行程进度" width="240"> |
 
+## 线上体验
+
+打开后可以规划真实的高德路线，或从「室内运动」试用 DeepSeek 编排和音乐播放。保存的旅程卡和轨迹只留在当前浏览器。[打开移动原声带](https://motion-score.xu13791666851.workers.dev/)
+
 ## 可以体验什么
 
 - **户外跑步和驾车**可以输入起点与终点，查看高德路线、距离和预计用时。允许定位后，手机网页可在前台记录轨迹。
@@ -28,6 +32,17 @@ python launch.py
 ## 离线查看设计原型
 
 下载并完整解压 ZIP，打开 `motion-score-prototype.html`。可以查看 14 个设计页面和页面间的跳转。[下载离线原型](https://github.com/xu13791666851-sudo/Motion-score/raw/refs/heads/main/%E7%A7%BB%E5%8A%A8%E5%8E%9F%E5%A3%B0%E5%B8%A6-%E7%A6%BB%E7%BA%BF%E5%8E%9F%E5%9E%8B.zip)
+
+## 重新部署线上版
+
+先用 Python 打包公开网页及音频，再用已登录 Cloudflare 的 Wrangler 发布。项目当前使用 Node.js 24 和 Wrangler 4.151.1。
+
+```bash
+python -m cloudflare.prepare
+npx --yes wrangler@4.151.1 deploy
+```
+
+高德和 DeepSeek 的密钥由 Cloudflare Worker 的应用机密提供，与本地 `.env` 中的配置项同名。应用机密通过 Cloudflare 后台或 Wrangler 设置。
 
 ## 项目资料
 

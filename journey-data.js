@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const ai=window.MotionScoreAI;
+  const browserRecords=window.MotionScoreBrowserRecords;
   const seeds=[['上海','厦门',30,'drive'],['成都','丽江',45,'drive'],['北京','大理',60,'drive'],['杭州','西安',30,'drive']].map(([origin,destination,minutes,scene],i)=>({
     id:`demo-route-${i}`,title:`${origin} → ${destination}`,origin,destination,minutes,scene,demo:true,visibility:'local',allowReuse:true,
     request:{origin,destination,minutes,scene,genres:['流行'],vibe:'balanced',text:'沿途音乐平稳过渡',surprise:true}
@@ -11,7 +12,7 @@
   try{favorites=JSON.parse(localStorage.getItem('motion-score-favorites')||'[]');if(!Array.isArray(favorites))favorites=[];}catch{}
   const clone=v=>JSON.parse(JSON.stringify(v));
   async function refresh(){
-    try{const result=await ai.api('/api/community');records=result.items||[];loaded=true;refreshError='';return records;}
+    try{records=browserRecords?await browserRecords.read():(await ai.api('/api/community')).items||[];loaded=true;refreshError='';return records;}
     catch(error){refreshError=error.message;window.MotionDesign?.announce(error.message);return records;}
   }
   function current(){
@@ -47,7 +48,7 @@
     if(visibility)payload.visibility=visibility;
     delete payload.epoch;delete payload.request;
     pending=(async()=>{
-      const saved=await ai.api('/api/community',payload);
+      const saved=browserRecords?await browserRecords.save(payload):await ai.api('/api/community',payload);
       records=[saved,...records.filter(r=>r.id!==saved.id)];
       if(draft && (record.epoch===draft.epoch || (record.id && record.id===draft.id)))draft={...draft,id:saved.id,title:saved.title,visibility:saved.visibility,allowReuse:saved.allowReuse};
       selected=saved;return saved;
